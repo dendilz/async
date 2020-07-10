@@ -7,10 +7,11 @@ from curses_tools import draw_frame, read_controls, get_frame_size
 
 TIC_TIMEOUT = 0.1
 STAR_SYMBOLS = '+*.:'
+border_size = 1
 
 
-async def blink(canvas, row, column, symbol='*'):
-    for _ in range(random.randint(1, 30)):
+async def blink(canvas, row, column, symbol='*', offset_tics=1):
+    for _ in range(offset_tics):
         await asyncio.sleep(0)
     while True:
         canvas.addstr(row, column, symbol, curses.A_DIM)
@@ -58,46 +59,32 @@ async def fire(canvas, start_row, start_column, rows_speed=-0.3, columns_speed=0
         column += columns_speed
 
 
-async def animate_spaceship(canvas, frames):
-    row, column = canvas.getmaxyx()
-    start_x = column // 2
-    start_y = row // 2
+async def animate_spaceship(canvas, row, column, frames):
+    rows, columns = canvas.getmaxyx()
 
-    frame_size_y, frame_size_x = get_frame_size(frames[0])
-    frame_pos_x = start_x
-    frame_pos_y = start_y
+    for frame in cycle(frames):
+        frame_size_y, frame_size_x = get_frame_size(frame)
+        frame_center_x = round(frame_size_x / 2)
 
-    border_size = 1
+        draw_frame(canvas, row, column - frame_center_x, frame)
+        for _ in range(2):
+            await asyncio.sleep(0)
+        draw_frame(canvas, row, column - frame_center_x, frame, negative=True)
 
-    for item in cycle(frames):
-
+        last_row, last_column = row, column
         direction_y, direction_x, space_pressed = read_controls(canvas)
 
-        frame_pos_x += direction_x
-        frame_pos_y += direction_y
+        row += direction_y
+        column += direction_x
 
-        frame_x_max = frame_pos_x + frame_size_x
-        frame_y_max = frame_pos_y + frame_size_y
-
-        field_x_max = column - border_size
-        field_y_max = row - border_size
-
-        frame_pos_x = min(frame_x_max, field_x_max) - frame_size_x
-        frame_pos_y = min(frame_y_max, field_y_max) - frame_size_y
-        frame_pos_x = max(frame_pos_x, border_size)
-        frame_pos_y = max(frame_pos_y, border_size)
-
-        draw_frame(canvas, frame_pos_y, frame_pos_x, item)
-        canvas.refresh()
-
-        for _ in range(3):
-            await asyncio.sleep(0)
-
-        draw_frame(canvas, frame_pos_y, frame_pos_x, item, negative=True)
+        if row < border_size or row + frame_size_y > rows - border_size:
+            row = last_row
+        if column < frame_center_x + border_size or column + frame_size_x > columns:
+            column = last_column
 
 
-def get_coordinate(coordinate):
-    return random.randint(1, coordinate - 2)
+def get_random_coordinate(coordinate):
+    return random.randint(border_size, coordinate - border_size * 2)
 
 
 def load_frame(path_to_file):
@@ -110,37 +97,44 @@ def draw(canvas):
     canvas.border()
     canvas.nodelay(True)
 
-    row, column = canvas.getmaxyx()
-    star_count = (row * column) // 25
+    rows, columns = canvas.getmaxyx()
+    stars_count = (rows * columns) // 25
+
+    center_row = round(rows / 2)
+    center_column = round(columns / 2)
 
     rocket_frame_1 = load_frame('./animation/rocket_frame_1.txt')
     rocket_frame_2 = load_frame('./animation/rocket_frame_2.txt')
 
     rocket_frames = [rocket_frame_1, rocket_frame_2]
 
-    coroutine_rocket = animate_spaceship(canvas, rocket_frames)
+    coroutine_rocket = animate_spaceship(canvas, center_row, center_column, rocket_frames)
 
-    coroutines_stars = [blink(canvas, get_coordinate(row), get_coordinate(column),
-                              random.choice(STAR_SYMBOLS)) for i in range(star_count)]
+    coroutines_stars = [
+        blink(canvas, get_random_coordinate(rows), get_random_coordinate(columns),
+              random.choice(STAR_SYMBOLS), random.randint(1, 30))
+        for i in range(stars_count)
+    ]
 
-    coroutine_fire = fire(canvas, row // 2, column // 2)
+    coroutine_fire = fire(canvas, center_row, center_column)
 
-    coroutines = []
-    coroutines += coroutines_stars
-    coroutines.append(coroutine_fire)
+    coroutines = [
+        *coroutines_stars,
+        coroutine_fire,
+        coroutine_rocket
+    ]
 
     while True:
-        coroutine_rocket.send(None)
         for coroutine in coroutines:
             try:
                 coroutine.send(None)
+                canvas.refresh()
             except RuntimeError:
                 coroutines.remove(coroutine)
                 canvas.border()
             except StopIteration:
                 break
         time.sleep(TIC_TIMEOUT)
-        canvas.refresh()
 
 
 if __name__ == '__main__':
