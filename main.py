@@ -63,24 +63,22 @@ async def animate_spaceship(canvas, row, column, frames):
     rows, columns = canvas.getmaxyx()
 
     for frame in cycle(frames):
-        draw_frame(canvas, row, column, frame)
-        await asyncio.sleep(0)
-        draw_frame(canvas, row, column, frame, negative=True)
         frame_size_y, frame_size_x = get_frame_size(frame)
         frame_center_x = round(frame_size_x / 2)
-        last_row, last_column = row, column
+
+        draw_frame(canvas, row, column - frame_center_x, frame)
+        await asyncio.sleep(0)
+        draw_frame(canvas, row, column - frame_center_x, frame, negative=True)
+
         direction_y, direction_x, space_pressed = read_controls(canvas)
 
         row += direction_y
         column += direction_x
 
-        if row < border_size or row + frame_size_y > rows - border_size:
-            row = last_row
-        if column < frame_center_x + border_size or column + frame_size_x > columns:
-            column = last_column
-
-        draw_frame(canvas, row, column, frame)
-        await asyncio.sleep(0)
+        row = min(rows - frame_size_y - border_size, row)
+        column = min(columns - frame_size_x + border_size, column)
+        row = max(row, border_size)
+        column = max(column, frame_center_x + border_size)
 
 
 def get_random_coordinate(coordinate):
@@ -133,8 +131,8 @@ def draw(canvas):
                 canvas.border()
             except StopIteration:
                 break
-        time.sleep(TIC_TIMEOUT)
         canvas.refresh()
+        time.sleep(TIC_TIMEOUT)
 
 
 if __name__ == '__main__':
