@@ -63,14 +63,11 @@ async def animate_spaceship(canvas, row, column, frames):
     rows, columns = canvas.getmaxyx()
 
     for frame in cycle(frames):
+        draw_frame(canvas, row, column, frame)
+        await asyncio.sleep(0)
+        draw_frame(canvas, row, column, frame, negative=True)
         frame_size_y, frame_size_x = get_frame_size(frame)
         frame_center_x = round(frame_size_x / 2)
-
-        draw_frame(canvas, row, column - frame_center_x, frame)
-        for _ in range(2):
-            await asyncio.sleep(0)
-        draw_frame(canvas, row, column - frame_center_x, frame, negative=True)
-
         last_row, last_column = row, column
         direction_y, direction_x, space_pressed = read_controls(canvas)
 
@@ -81,6 +78,9 @@ async def animate_spaceship(canvas, row, column, frames):
             row = last_row
         if column < frame_center_x + border_size or column + frame_size_x > columns:
             column = last_column
+
+        draw_frame(canvas, row, column, frame)
+        await asyncio.sleep(0)
 
 
 def get_random_coordinate(coordinate):
@@ -106,7 +106,7 @@ def draw(canvas):
     rocket_frame_1 = load_frame('./animation/rocket_frame_1.txt')
     rocket_frame_2 = load_frame('./animation/rocket_frame_2.txt')
 
-    rocket_frames = [rocket_frame_1, rocket_frame_2]
+    rocket_frames = [rocket_frame_1, rocket_frame_1, rocket_frame_2, rocket_frame_2]
 
     coroutine_rocket = animate_spaceship(canvas, center_row, center_column, rocket_frames)
 
@@ -125,16 +125,16 @@ def draw(canvas):
     ]
 
     while True:
-        for coroutine in coroutines:
+        for coroutine in coroutines.copy():
             try:
                 coroutine.send(None)
-                canvas.refresh()
             except RuntimeError:
                 coroutines.remove(coroutine)
                 canvas.border()
             except StopIteration:
                 break
         time.sleep(TIC_TIMEOUT)
+        canvas.refresh()
 
 
 if __name__ == '__main__':
