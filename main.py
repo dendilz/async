@@ -111,7 +111,7 @@ def draw(canvas):
     coroutines_stars = [
         blink(canvas, get_random_coordinate(rows), get_random_coordinate(columns),
               random.choice(STAR_SYMBOLS), random.randint(1, 30))
-        for i in range(stars_count)
+        for _ in range(stars_count)
     ]
 
     coroutine_fire = fire(canvas, center_row, center_column)
